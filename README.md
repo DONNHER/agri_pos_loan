@@ -1,75 +1,72 @@
-# Lending PIS - Project Overview
-
-This repository contains the complete Lending PIS (Project Information System) application, split into two main components:
-
-## Project Structure
-
-```
-Lending_PIS/
-├── laravel_backend/     # Laravel API Backend
-└── React Frontend/      # React TypeScript Frontend
-```
-
-## Components
-
-### 🔧 Laravel Backend (`laravel_backend/`)
-- **Framework**: Laravel 10+
-- **Language**: PHP 8.1+
-- **Purpose**: RESTful API, business logic, database management, authentication
-- **Documentation**: See [laravel_backend/README.md](laravel_backend/README.md)
-
-### ⚛️ React Frontend (`React Frontend/`)
-- **Framework**: React 18+ with TypeScript
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS
-- **Purpose**: User interface, client-side state management, API integration
-- **Documentation**: See [React Frontend/README.md](React Frontend/README.md)
-
-## Getting Started
-
-### Prerequisites
-- PHP 8.1+ and Composer (for Laravel backend)
-- Node.js 18+ and npm (for React frontend)
-- Database (MySQL/PostgreSQL/SQLite)
-
-### Quick Start
-
-1. **Setup Laravel Backend:**
-   ```bash
-   cd laravel_backend
-   composer install
-   cp .env.example .env
-   php artisan key:generate
-   php artisan migrate
-   php artisan serve
-   ```
-
-2. **Setup React Frontend (in a new terminal):**
-   ```bash
-   cd "React Frontend"
-   npm install
-   npm run dev
-   ```
-
-3. **Access the application:**
-   - Backend API: http://localhost:8000
-   - Frontend: http://localhost:5173 (or as shown in Vite output)
-
-## Development Workflow
-
-1. Start the Laravel backend server (`php artisan serve`)
-2. Start the React development server (`npm run dev`)
-3. Develop features in both folders independently
-4. API communication happens via HTTP requests from React to Laravel
-
-## Deployment
-
-- **Backend**: Deploy Laravel to your preferred PHP hosting (Heroku, AWS, DigitalOcean, etc.)
-- **Frontend**: Build with `npm run build` and deploy static files to Netlify, Vercel, AWS S3, etc.
-- Configure CORS in Laravel to allow your frontend domain
-
-## License
-
-[Add your license here]
-
 # agri_pos_loan
+
+Lending PIS includes a Laravel API backend and two Vite frontend applications: the Loan portal and AgriTrade POS.
+
+## Project Layout
+
+```text
+laravel_backend/  Laravel API, migrations, and seeders
+react_frontend/   Loan and POS React applications
+neon.ts           Neon services and bucket configuration
+```
+
+## Requirements
+
+- PHP 8.2+ and Composer
+- Node.js compatible with Vite 8 and pnpm 9+
+- Neon CLI access for pulling the configured database and object-storage environment variables
+
+## Run Locally
+
+### Laravel API
+
+In one terminal:
+
+```powershell
+cd laravel_backend
+composer install
+Copy-Item .env.example .env
+php artisan key:generate
+```
+
+For the configured Neon project, run this from the repository root after signing in to Neon:
+
+```powershell
+neon env pull --file laravel_backend/.env
+```
+
+Then start the API:
+
+```powershell
+cd laravel_backend
+php artisan serve
+```
+
+The API is available at `http://localhost:8000/api` by default. To create or update the database schema, run `php artisan migrate`; to add the demo accounts, run `php artisan db:seed`.
+
+### React Frontends
+
+In `react_frontend`, install dependencies:
+
+```powershell
+cd react_frontend
+pnpm install
+```
+
+The Loan portal uses `index.html` and `frontend/loan/main.tsx`. Start it with `pnpm run dev`; open [http://localhost:3001/login](http://localhost:3001/login).
+
+The POS uses `pos.html` and `frontend/pos/main.tsx`. Start it in a separate terminal with `pnpm run dev:pos`; open [http://localhost:3002/pos.html](http://localhost:3002/pos.html).
+
+Both frontends use `http://localhost:8000/api` by default. Set `VITE_API_URL` in a local `react_frontend/.env.local` file to use a different API URL.
+
+## Production Builds
+
+Run these commands from `react_frontend`:
+
+```powershell
+pnpm run build       # Build both apps
+pnpm run build:loan  # Build the Loan portal to dist/loan/
+pnpm run build:pos   # Build the POS to dist/pos/
+```
+
+See [react_frontend/README.md](react_frontend/README.md) for frontend-specific setup details and [laravel_backend/README.md](laravel_backend/README.md) for backend details.
