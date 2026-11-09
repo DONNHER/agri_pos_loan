@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "bmewburn.vscode-intelephense-client",
+    "ryannaddy.laravel-artisan",
+    "amiralizadeh9480.laravel-extra-intellisense",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "rangav.vscode-thunder-client"
+  ]
+}

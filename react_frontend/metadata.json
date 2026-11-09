@@ -1,0 +1,6 @@
+{
+  "name": "TikCredit — Cash Loan & PayLater",
+  "description": "A React Native and Web consumer credit, instant cash loan, and Shop PayLater installment interface modeled after TikTok Credit.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

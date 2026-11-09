@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--theme-font-sans);
+  --font-display: var(--theme-font-display);
+  --font-mono: var(--theme-font-mono);
+
+  --color-canvas: var(--theme-canvas);
+  --color-surface: var(--theme-surface);
+  --color-subtle: var(--theme-subtle);
+  --color-line: var(--theme-line);
+
+  --color-ink: var(--theme-ink);
+  --color-ink-secondary: var(--theme-ink-secondary);
+  --color-ink-muted: var(--theme-ink-muted);
+
+  --color-inverse: var(--theme-inverse);
+  --color-inverse-hover: var(--theme-inverse-hover);
+  --color-inverse-elevated: var(--theme-inverse-elevated);
+  --color-inverse-track: var(--theme-inverse-track);
+  --color-ink-inverse: var(--theme-ink-inverse);
+  --color-ink-inverse-subtle: var(--theme-ink-inverse-subtle);
+  --color-ink-inverse-muted: var(--theme-ink-inverse-muted);
+
+  --color-brand: var(--theme-brand);
+  --color-brand-hover: var(--theme-brand-hover);
+  --color-brand-soft: var(--theme-brand-soft);
+  --color-brand-tint: var(--theme-brand-tint);
+  --color-on-brand: var(--theme-on-brand);
+  --color-accent: var(--theme-accent);
+
+  --color-success: var(--theme-success);
+  --color-warning: var(--theme-warning);
+  --color-danger: var(--theme-danger);
+
+  --color-scrim: var(--theme-scrim);
+}
+
+@layer base {
+  html {
+    font-family: var(--theme-font-sans);
+    background-color: var(--theme-canvas);
+    color: var(--theme-ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--theme-font-display);
+    text-wrap: balance;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,6 @@
+# API Configuration
+API_URL=https://lendingpis-production.up.railway.app/api
+
+# Supabase configuration (MATCHING YOUR DASHBOARD)
+SUPABASE_URL=https://ybciitsrswkwejljlylz.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InliY2lpdHNyc3drd2VqbGpseWx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNDIyOTUsImV4cCI6MjA4OTgxODI5NX0.gnALSzSHiYhhQ2-g1fT1ccutQ35Fb1-OYS7gh0b4TfA

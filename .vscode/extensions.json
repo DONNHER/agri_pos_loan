@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "bradlc.vscode-tailwindcss",
+    "dsznajder.es7-react-js-snippets",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "trunk.io",
+    "bmewburn.vscode-intelephense-client",
+    "rangav.vscode-thunder-client"
+  ]
+}

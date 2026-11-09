@@ -1,0 +1,15 @@
+.neon
+node_modules/
+.env.local
+/laravel_backend/.env
+/laravel_backend/database/database.sqlite
+/laravel_backend/**/*.bak
+/laravel_backend/vendor/
+/laravel_backend/storage/app/*
+!/laravel_backend/storage/app/.gitignore
+/laravel_backend/storage/framework/cache/data/*
+/laravel_backend/storage/framework/sessions/*
+/laravel_backend/storage/framework/testing/*
+/laravel_backend/storage/framework/views/*
+/laravel_backend/storage/logs/*.log
+/laravel_backend/bootstrap/cache/*.php
