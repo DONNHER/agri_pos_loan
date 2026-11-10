@@ -9,6 +9,8 @@ import {
   Smartphone,
   Sparkles,
   UserPlus,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import {
   GENERATED_ASSETS,
@@ -17,6 +19,7 @@ import {
   UserRole,
 } from '../shared/creditData';
 import { SafeImage } from '../shared/components/SafeImage';
+import { api, type LoginCredentials } from '../shared/api';
 
 interface LoginViewProps {
   users: PlatformUser[];
@@ -27,6 +30,7 @@ interface LoginViewProps {
     phone: string;
     email: string;
   }) => void;
+  onApiLogin?: (credentials: LoginCredentials) => Promise<void>;
 }
 
 type AuthTab = 'sample' | 'credentials' | 'register';
@@ -35,6 +39,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
   users,
   onLoginAsUser,
   onRegisterMember,
+  onApiLogin,
 }) => {
   const [authTab, setAuthTab] = useState<AuthTab>('sample');
   const [step, setStep] = useState<'form' | 'otp'>('form');
@@ -51,6 +56,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [regEmail, setRegEmail] = useState('');
 
   const [errorMsg, setErrorMsg] = useState('');
+  const [isApiLoading, setIsApiLoading] = useState(false);
 
   const sampleShareholder =
     users.find((u) => u.id === 'user-shareholder-1') ||
@@ -92,6 +98,21 @@ export const LoginView: React.FC<LoginViewProps> = ({
       return;
     }
 
+    // If API login is available, use it
+    if (onApiLogin) {
+      setIsApiLoading(true);
+      onApiLogin({ email: identifier.trim(), password: passwordInput })
+        .then(() => {
+          setIsApiLoading(false);
+        })
+        .catch((err) => {
+          setIsApiLoading(false);
+          setErrorMsg(err.message || 'Login failed. Please try again.');
+        });
+      return;
+    }
+
+    // Fallback to demo mode
     setPendingUserId(matched.id);
     setStep('otp');
   };
@@ -520,19 +541,30 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
                       {errorMsg && (
                         <p
-                          className="text-xs font-medium text-danger"
+                          className="text-xs font-medium text-danger flex items-center gap-1.5"
                           role="alert"
                         >
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                           {errorMsg}
                         </p>
                       )}
 
                       <button
                         type="submit"
-                        className="w-full min-h-[48px] px-5 py-3 rounded-xl bg-brand hover:bg-brand-hover text-on-brand font-semibold text-sm flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer transition-colors"
+                        disabled={isApiLoading}
+                        className="w-full min-h-[48px] px-5 py-3 rounded-xl bg-brand hover:bg-brand-hover text-on-brand font-semibold text-sm flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <span>Continue with 2FA OTP</span>
-                        <ArrowRight className="w-4 h-4" />
+                        {isApiLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Signing in...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Continue with 2FA OTP</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
                       </button>
                     </form>
                   )}

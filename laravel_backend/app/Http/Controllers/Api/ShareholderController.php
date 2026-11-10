@@ -15,11 +15,48 @@ use App\Models\Notification;
 class ShareholderController extends Controller
 {
     /**
-     * Display a listing of shareholders.
-     * Eager loads 'user' to provide account status and role.
+         * Display a listing of shareholders (public - no auth required).
+         * Used for login page to show sample accounts.
      */
-    public function index(Request $request)
+        public function indexPublic(Request $request)
     {
+            $query = Shareholder::with(['user']);
+
+            // Handle Search
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $query->where(function($q) use ($search) {
+                    $q->where('first_name', 'like', "%$search%")
+                      ->orWhere('last_name', 'like', "%$search%")
+                      ->orWhere('email', 'like', "%$search%")
+                      ->orWhere('full_name', 'like', "%$search%");
+                });
+            }
+
+            // Sorting - Default to first_name if created_at is problematic
+            $query->orderBy('first_name', 'asc');
+
+            // Manual Pagination to be safe
+            $perPage = $request->get('per_page', 10);
+            $paginated = $query->paginate($perPage);
+
+            return response()->json([
+                'success' => true,
+                'data' => $paginated->items(),
+                'meta' => [
+                    'total' => $paginated->total(),
+                    'current_page' => $paginated->currentPage(),
+                    'last_page' => $paginated->lastPage(),
+                ]
+            ]);
+        }
+
+        /**
+         * Display a listing of shareholders.
+         * Eager loads 'user' to provide account status and role.
+         */
+        public function index(Request $request)
+        {
         $query = Shareholder::with(['user']);
 
         // Handle Search

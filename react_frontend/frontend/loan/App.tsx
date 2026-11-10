@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState, useCallback, Suspense, lazy } from 'react';
 import { CheckCircle2 } from 'lucide-react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import {
   AuditCategory,
   AuditLogEntry,
@@ -34,6 +35,9 @@ import {
 import { PosWorkspace } from '../pos/PosWorkspace';
 import { buildPosNav, PosSubTab } from '../pos/posNavigation';
 import { LoginView } from './auth/LoginView';
+import { ShareholderLoginView } from './auth/ShareholderLoginView';
+import { ManagerLoginView } from './auth/ManagerLoginView';
+import { AdminLoginView } from './auth/AdminLoginView';
 import {
   AppLayout,
   AuthLayout,
@@ -70,7 +74,7 @@ import {
   buildAdminNav,
 } from './admin/AdminWorkspace';
 import { AuthProvider, useAuth, useApi, useMutation } from './shared/AuthContext';
-import { api, type ApiError } from './shared/api';
+import { api, type ApiError, type LoginCredentials } from './shared/api';
 
 // ============================================
 // Lazy-loaded components for code splitting
@@ -133,14 +137,6 @@ const initialAppState: AppState = {
 // ============================================
 // Main App Component (with Auth Provider)
 // ============================================
-
-export default function App() {
-  return (
-    <AuthProvider>
-      <AppInner />
-    </AuthProvider>
-  );
-}
 
 // ============================================
 // Inner App Component (with auth context)
@@ -294,6 +290,16 @@ function AppInner() {
   // Data Fetching Hooks
   // ============================================
 
+  // Fetch users for login page (runs on app load, before auth)
+  const { data: initialUsers, execute: fetchInitialUsers } = useApi(
+    async () => {
+      const response = await api.getShareholders();
+      return response.data;
+    },
+    [],
+    true // Always fetch on mount
+  );
+
   // Fetch initial platform data when authenticated
   const { data: platformData, isLoading: platformLoading, error: platformError, execute: fetchPlatformData } = useApi(
     async () => {
@@ -343,9 +349,18 @@ function AppInner() {
     if (isAuthenticated && activeUser) {
       fetchPlatformData();
     } else if (!isAuthenticated) {
-      setState(initialAppState);
+      // Use initial users from API for login page
+      if (initialUsers) {
+        setState(prev => ({
+          ...prev,
+          users: initialUsers,
+          isLoading: false,
+        }));
+      } else {
+        setState(initialAppState);
+      }
     }
-  }, [isAuthenticated, activeUser, fetchPlatformData]);
+  }, [isAuthenticated, activeUser, fetchPlatformData, initialUsers]);
 
   // Update state when platform data loads
   useEffect(() => {
@@ -690,79 +705,50 @@ function AppInner() {
     phone: string;
     email: string;
   }) => {
-    const newId = `user-shareholder-${Date.now()}`;
-    const acctId = `SH-${Math.floor(1000 + Math.random() * 9000)}-2026`;
-    const newUser: PlatformUser = {
-      id: newId,
-      role: UserRole.SHAREHOLDER,
-      status: 'ACTIVE',
-      fullName: payload.fullName,
-      handle: payload.handle,
-      phone: payload.phone,
-      email: payload.email,
-      password: 'password123',
-      accountId: acctId,
-      avatarPath: '',
-      kycVerified: false,
-      onboardingCompleted: false,
-      statementDay: 15,
-      securityPin: '123456',
-      autoDebitEnabled: false,
-      totalLimit: 0,
-      shareCapital: 12000,
-      nationalId: '',
-      cityAddress: '',
-      incomeSource: 'Salaried · Digital Operations',
-      monthlyIncome: 45000,
-      channels: [],
-      boostTasks: [
-        {
-          id: 'boost-kyc',
-          title: 'Complete 3-Step KYC & National ID Onboarding',
-          subtitle: 'Activates initial pre-qualified revolving credit ceiling',
-          boostAmount: 0,
-          completed: false,
-          actionLabel: 'Pending Onboarding',
-        },
-        {
-          id: 'boost-income',
-          title: 'Upload Latest Monthly Payslip or Bank Statement',
-          subtitle: 'Verify monthly income to boost cash credit ceiling',
-          boostAmount: 10000,
-          completed: false,
-          actionLabel: 'Verify +₱10,000',
-        },
-        {
-          id: 'boost-autodebit',
-          title: 'Enable Auto-Debit on Primary Payout Account',
-          subtitle: 'Automatic statement day settlement with ₱0 fee',
-          boostAmount: 5000,
-          completed: false,
-          actionLabel: 'Enable +₱5,000',
-        },
-      ],
-    };
-
     setNotificationsOpen(false);
 
-    setState(prev => ({
-      ...prev,
-      activeUserId: newId,
-      impersonatorAdminId: null,
-      users: [newUser, ...prev.users],
-      notifications: [
-        createNotification(newId, 'ACCOUNT', 'Welcome to TikCredit', 'Complete your 3-step KYC onboarding to activate your revolving cash credit line.', acctId),
-        ...prev.notifications,
-      ],
-      auditLogs: [
-        createAuditEntry(newUser, 'ONBOARDING', 'SHAREHOLDER_REGISTERED', acctId, `Created new Shareholder account ${payload.handle} with zero loan history`),
-        ...prev.auditLogs,
-      ],
-    }));
+    try {
+      // Call API to register user in backend database
+      const registerPayload = {
+        fullName: payload.fullName,
+        handle: payload.handle,
+        phone: payload.phone,
+        email: payload.email,
+        password: 'password123',
+        password_confirmation: 'password123',
+      };
 
-    setShareholderTab('home');
-    showToast('Account created — complete 3-step Member Onboarding');
-  }, [showToast, createNotification, createAuditEntry]);
+      const result = await api.register(registerPayload);
+      
+      // The API returns the created user with token
+      const newUser = result.user;
+      
+      // Update local state with the new user from API
+      setState(prev => ({
+        ...prev,
+        activeUserId: newUser.id,
+        users: [...prev.users, newUser],
+        auditLogs: [
+          createAuditEntry(newUser, 'AUTH', 'USER_REGISTER', newUser.accountId, `New member registered: ${newUser.fullName}`),
+          ...prev.auditLogs,
+        ],
+      }));
+
+      // Set shareholder tab to onboarding
+      setShareholderTab('home');
+      showToast(`Welcome ${newUser.fullName}! Please complete KYC onboarding.`);
+      
+      // Trigger onboarding
+      setState(prev => ({
+        ...prev,
+        users: prev.users.map(u => u.id === newUser.id ? { ...u, onboardingCompleted: false } : u),
+      }));
+    } catch (error) {
+      const apiError = error as ApiError;
+      showToast(apiError.message || 'Registration failed. Please try again.');
+      throw error;
+    }
+  }, [showToast, createAuditEntry]);
 
   const handleCompleteOnboarding = useCallback(async (payload: {
     cityAddress: string;
@@ -2177,6 +2163,102 @@ function AppInner() {
 
   /* 1. UNAUTHENTICATED -> LOGIN PORTAL */
   if (!activeUser) {
+    const handleApiLogin = useCallback(async (credentials: LoginCredentials) => {
+      try {
+        const result = await api.login(credentials);
+        // The AuthContext will handle setting the user
+        // We just need to trigger a refresh
+        await refreshUser();
+      } catch (error) {
+        throw error;
+      }
+    }, [refreshUser]);
+
+    // For demo: show role selector first, then appropriate login view
+    const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+
+    if (!selectedRole) {
+      return (
+        <AuthLayout>
+          {toastMessage && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-inverse text-ink-inverse px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 text-xs font-medium max-w-[92vw]"
+            >
+              <CheckCircle2 className="w-4 h-4 text-accent shrink-0" />
+              <span className="truncate">{toastMessage}</span>
+            </div>
+          )}
+          <div className="min-h-screen bg-canvas text-ink flex flex-col justify-between">
+            <header className="w-full max-w-6xl mx-auto px-5 sm:px-8 py-5 flex items-center justify-between gap-8">
+              <span className="font-display text-xl font-extrabold tracking-tight text-ink whitespace-nowrap shrink-0">
+                TikCredit
+              </span>
+              <span className="text-xs text-ink-secondary whitespace-nowrap shrink-0">
+                Choose your portal to continue
+              </span>
+            </header>
+            <main className="w-full max-w-6xl mx-auto px-4 sm:px-8 py-4 sm:py-6 flex-1 flex items-center">
+              <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                {/* Shareholder Card */}
+                <button
+                  onClick={() => setSelectedRole(UserRole.SHAREHOLDER)}
+                  className="bg-surface border border-line rounded-3xl p-8 flex flex-col items-center text-center hover:border-brand hover:shadow-lg transition-all cursor-pointer"
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-brand/10 flex items-center justify-center mb-4">
+                    <span className="text-2xl">👤</span>
+                  </div>
+                  <h3 className="font-display text-xl font-extrabold text-ink mb-2">Shareholder</h3>
+                  <p className="text-sm text-ink-secondary text-center mb-4">
+                    Personal credit line, cash loans, installments & support tickets
+                  </p>
+                  <div className="text-xs text-brand font-semibold">Sign In →</div>
+                </button>
+
+                {/* Manager Card */}
+                <button
+                  onClick={() => setSelectedRole(UserRole.MANAGER)}
+                  className="bg-surface border border-line rounded-3xl p-8 flex flex-col items-center text-center hover:border-success hover:shadow-lg transition-all cursor-pointer"
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-success/10 flex items-center justify-center mb-4">
+                    <span className="text-2xl">📋</span>
+                  </div>
+                  <h3 className="font-display text-xl font-extrabold text-ink mb-2">Loan Manager</h3>
+                  <p className="text-sm text-ink-secondary text-center mb-4">
+                    KYC verification, loan approvals, disbursements & ticket resolution
+                  </p>
+                  <div className="text-xs text-success font-semibold">Sign In →</div>
+                </button>
+
+                {/* Admin Card */}
+                <button
+                  onClick={() => setSelectedRole(UserRole.ADMIN)}
+                  className="bg-surface border border-line rounded-3xl p-8 flex flex-col items-center text-center hover:border-inverse hover:shadow-lg transition-all cursor-pointer"
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-inverse/10 flex items-center justify-center mb-4">
+                    <span className="text-2xl">🛡️</span>
+                  </div>
+                  <h3 className="font-display text-xl font-extrabold text-ink mb-2">Administrator</h3>
+                  <p className="text-sm text-ink-secondary text-center mb-4">
+                    User management, impersonation, audit logs, backups & governance
+                  </p>
+                  <div className="text-xs text-ink font-semibold">Sign In →</div>
+                </button>
+              </div>
+            </main>
+          </div>
+        </AuthLayout>
+      );
+    }
+
+    // Show role-specific login view
+    const RoleLoginView = selectedRole === UserRole.SHAREHOLDER
+      ? ShareholderLoginView
+      : selectedRole === UserRole.MANAGER
+      ? ManagerLoginView
+      : AdminLoginView;
+
     return (
       <AuthLayout>
         {toastMessage && (
@@ -2189,10 +2271,11 @@ function AppInner() {
             <span className="truncate">{toastMessage}</span>
           </div>
         )}
-        <LoginView
+        <RoleLoginView
           users={state.users}
           onLoginAsUser={handleLoginAsUser}
           onRegisterMember={handleRegisterNewMember}
+          onApiLogin={handleApiLogin}
         />
       </AuthLayout>
     );
@@ -2701,5 +2784,347 @@ function AppInner() {
     </>
     )}
     </AppLayout>
+  );
+}
+
+// ============================================
+// Route Components
+// ============================================
+
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const location = useLocation();
+
+  if (authLoading) {
+    return (
+      <AuthLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-brand border-t-transparent"></div>
+        </div>
+      </AuthLayout>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/shareholder/login" state={{ from: location }} replace />;
+  }
+
+  return <>{children}</>;
+};
+
+const PublicRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  if (authLoading) {
+    return (
+      <AuthLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-brand border-t-transparent"></div>
+        </div>
+      </AuthLayout>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// ============================================
+// Login Page Component
+// ============================================
+
+interface LoginPageProps {
+  role: UserRole;
+}
+
+function LoginPage({ role }: LoginPageProps) {
+  const { user: activeUser, isAuthenticated, isLoading: authLoading, logout, refreshUser } = useAuth();
+  const [state, setState] = useState<AppState>(initialAppState);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Fetch users for login page
+  const { data: initialUsers, execute: fetchInitialUsers } = useApi(
+    async () => {
+      const response = await api.getShareholders();
+      return response.data;
+    },
+    [],
+    true
+  );
+
+  // Load initial users
+  useEffect(() => {
+    if (initialUsers) {
+      setState(prev => ({
+        ...prev,
+        users: initialUsers,
+        isLoading: false,
+      }));
+    }
+  }, [initialUsers]);
+
+  const handleApiLogin = useCallback(async (credentials: LoginCredentials) => {
+    try {
+      const result = await api.login(credentials);
+      await refreshUser();
+    } catch (error) {
+      throw error;
+    }
+  }, [refreshUser]);
+
+  const showToast = useCallback((msg: string) => setToastMessage(msg), []);
+
+  const createAuditEntry = useCallback((
+    actor: { fullName: string; handle: string; role: UserRole },
+    category: AuditCategory,
+    action: string,
+    target: string,
+    details: string,
+    impersonatedByHandle?: string
+  ): AuditLogEntry => ({
+    id: `log-${Date.now()}-${Math.floor(Math.random() * 999)}`,
+    timestamp: formatNowTimestamp(),
+    category,
+    actorName: actor.fullName,
+    actorHandle: actor.handle,
+    actorRole: actor.role,
+    impersonatedBy: impersonatedByHandle,
+    action,
+    target,
+    details,
+  }), []);
+
+  const handleLoginAsUser = useCallback(async (userId: string, triggerOnboarding = false) => {
+    const target = state.users.find(u => u.id === userId);
+    if (!target) return;
+
+    if (target.status === 'SUSPENDED') {
+      showToast('Account is currently suspended by Administrator');
+      return;
+    }
+
+    // Validate role matches route
+    if (target.role !== role) {
+      showToast(`This is a ${getRoleLabel(role)} portal. Please use the correct login page.`);
+      return;
+    }
+
+    setState(prev => ({
+      ...prev,
+      activeUserId: target.id,
+      impersonatorAdminId: null,
+      users: triggerOnboarding
+        ? prev.users.map(u => u.id === target.id ? { ...u, onboardingCompleted: false } : u)
+        : prev.users,
+      auditLogs: [
+        createAuditEntry(target, 'AUTH', 'USER_LOGIN', target.accountId, `Signed into ${getRoleLabel(target.role)} workspace`),
+        ...prev.auditLogs,
+      ],
+    }));
+
+    showToast(`Signed in as ${target.fullName} (${getRoleLabel(target.role)})`);
+  }, [state.users, role, showToast, createAuditEntry]);
+
+  const handleRegisterNewMember = useCallback(async (payload: {
+    fullName: string;
+    handle: string;
+    phone: string;
+    email: string;
+  }) => {
+    try {
+      const registerPayload = {
+        fullName: payload.fullName,
+        handle: payload.handle,
+        phone: payload.phone,
+        email: payload.email,
+        password: 'password123',
+        password_confirmation: 'password123',
+      };
+
+      const result = await api.register(registerPayload);
+      const newUser = result.user;
+
+      setState(prev => ({
+        ...prev,
+        activeUserId: newUser.id,
+        users: [...prev.users, newUser],
+        auditLogs: [
+          createAuditEntry(newUser, 'AUTH', 'USER_REGISTER', newUser.accountId, `New member registered: ${newUser.fullName}`),
+          ...prev.auditLogs,
+        ],
+      }));
+
+      setShareholderTab('home');
+      showToast(`Welcome ${newUser.fullName}! Please complete KYC onboarding.`);
+
+      setState(prev => ({
+        ...prev,
+        users: prev.users.map(u => u.id === newUser.id ? { ...u, onboardingCompleted: false } : u),
+      }));
+    } catch (error) {
+      const apiError = error as ApiError;
+      showToast(apiError.message || 'Registration failed. Please try again.');
+      throw error;
+    }
+  }, [showToast, createAuditEntry]);
+
+  // Render role-specific login view
+  const RoleLoginView = role === UserRole.SHAREHOLDER
+    ? ShareholderLoginView
+    : role === UserRole.MANAGER
+    ? ManagerLoginView
+    : AdminLoginView;
+
+  return (
+    <AuthLayout>
+      {toastMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-inverse text-ink-inverse px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 text-xs font-medium max-w-[92vw]"
+        >
+          <CheckCircle2 className="w-4 h-4 text-accent shrink-0" />
+          <span className="truncate">{toastMessage}</span>
+        </div>
+      )}
+      <RoleLoginView
+        users={state.users}
+        onLoginAsUser={handleLoginAsUser}
+        onRegisterMember={handleRegisterNewMember}
+        onApiLogin={handleApiLogin}
+      />
+    </AuthLayout>
+  );
+}
+
+// ============================================
+// Main App Export with Routes
+// ============================================
+
+// ============================================
+// Landing Page Component (Role Selector)
+// ============================================
+
+function LandingPage() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  if (authLoading) {
+    return (
+      <AuthLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-brand border-t-transparent"></div>
+        </div>
+      </AuthLayout>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return (
+    <AuthLayout>
+      <div className="min-h-screen bg-canvas text-ink flex flex-col justify-between">
+        <header className="w-full max-w-6xl mx-auto px-5 sm:px-8 py-5 flex items-center justify-between gap-8">
+          <span className="font-display text-xl font-extrabold tracking-tight text-ink whitespace-nowrap shrink-0">
+            TikCredit
+          </span>
+          <span className="text-xs text-ink-secondary whitespace-nowrap shrink-0">
+            Choose your portal to continue
+          </span>
+        </header>
+        <main className="w-full max-w-6xl mx-auto px-4 sm:px-8 py-4 sm:py-6 flex-1 flex items-center">
+          <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+            {/* Shareholder Card */}
+            <button
+              onClick={() => window.location.href = '/shareholder/login'}
+              className="bg-surface border border-line rounded-3xl p-8 flex flex-col items-center text-center hover:border-brand hover:shadow-lg transition-all cursor-pointer"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-brand/10 flex items-center justify-center mb-4">
+                <span className="text-2xl">👤</span>
+              </div>
+              <h3 className="font-display text-xl font-extrabold text-ink mb-2">Shareholder</h3>
+              <p className="text-sm text-ink-secondary text-center mb-4">
+                Personal credit line, cash loans, installments & support tickets
+              </p>
+              <div className="text-xs text-brand font-semibold">Sign In →</div>
+            </button>
+
+            {/* Manager Card */}
+            <button
+              onClick={() => window.location.href = '/manager/login'}
+              className="bg-surface border border-line rounded-3xl p-8 flex flex-col items-center text-center hover:border-success hover:shadow-lg transition-all cursor-pointer"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-success/10 flex items-center justify-center mb-4">
+                <span className="text-2xl">📋</span>
+              </div>
+              <h3 className="font-display text-xl font-extrabold text-ink mb-2">Loan Manager</h3>
+              <p className="text-sm text-ink-secondary text-center mb-4">
+                KYC verification, loan approvals, disbursements & ticket resolution
+              </p>
+              <div className="text-xs text-success font-semibold">Sign In →</div>
+            </button>
+
+            {/* Admin Card */}
+            <button
+              onClick={() => window.location.href = '/admin/login'}
+              className="bg-surface border border-line rounded-3xl p-8 flex flex-col items-center text-center hover:border-inverse hover:shadow-lg transition-all cursor-pointer"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-inverse/10 flex items-center justify-center mb-4">
+                <span className="text-2xl">🛡️</span>
+              </div>
+              <h3 className="font-display text-xl font-extrabold text-ink mb-2">Administrator</h3>
+              <p className="text-sm text-ink-secondary text-center mb-4">
+                User management, impersonation, audit logs, backups & governance
+              </p>
+              <div className="text-xs text-ink font-semibold">Sign In →</div>
+            </button>
+          </div>
+        </main>
+      </div>
+    </AuthLayout>
+  );
+}
+
+// ============================================
+// Main App Export with Routes
+// ============================================
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Routes>
+        {/* Landing Page - Role Selector */}
+        <Route path="/" element={<LandingPage />} />
+
+        {/* Public Routes - Login Pages */}
+        <Route path="/shareholder/login" element={
+          <PublicRoute>
+            <LoginPage role={UserRole.SHAREHOLDER} />
+          </PublicRoute>
+        } />
+        <Route path="/manager/login" element={
+          <PublicRoute>
+            <LoginPage role={UserRole.MANAGER} />
+          </PublicRoute>
+        } />
+        <Route path="/admin/login" element={
+          <PublicRoute>
+            <LoginPage role={UserRole.ADMIN} />
+          </PublicRoute>
+        } />
+        <Route path="/login" element={<Navigate to="/shareholder/login" replace />} />
+
+        {/* Protected Routes - Dashboard */}
+        <Route path="/*" element={
+          <ProtectedRoute>
+            <AppInner />
+          </ProtectedRoute>
+        } />
+      </Routes>
+    </AuthProvider>
   );
 }

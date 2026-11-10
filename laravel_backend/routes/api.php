@@ -53,6 +53,10 @@ Route::get('/user/by-email', function (Request $request) {
 
     return response()->json($user);
 });
+
+// 🚀 Public Shareholders List (for login page - no auth required)
+Route::get('/shareholders', [ShareholderController::class, 'indexPublic']);
+
 // Protected Routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
