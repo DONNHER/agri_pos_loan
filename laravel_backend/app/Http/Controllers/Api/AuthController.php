@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Http;
 
 class AuthController extends Controller
 {
@@ -54,63 +53,6 @@ class AuthController extends Controller
         }
     }
 
-    /**
-         * 🚀 Helper to update password on Supabase Admin API to keep them in sync
-         */
-        private function updateSupabasePassword($email, $newPassword)
-        {
-            try {
-                $supabaseUrl = env('SUPABASE_URL') ?? config('services.supabase.url');
-                $serviceRoleKey = env('SUPABASE_SERVICE_ROLE_KEY') ?? config('services.supabase.service_role_key');
-
-                if (!$supabaseUrl || !$serviceRoleKey) {
-                    Log::warning('Supabase environment variables (SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY) are missing. Skipping remote sync.');
-                    return false;
-                }
-
-                // 1. Find Supabase User ID by Email using query parameters
-                $searchResponse = Http::withHeaders([
-                    'apikey' => $serviceRoleKey,
-                    'Authorization' => 'Bearer ' . $serviceRoleKey,
-                ])->get("{$supabaseUrl}/auth/v1/admin/users", [
-                    'email' => $email
-                ]);
-
-                if (!$searchResponse->successful()) {
-                    Log::error('Failed to fetch user from Supabase Admin API', ['response' => $searchResponse->body()]);
-                    return false;
-                }
-
-                $users = $searchResponse->json('users') ?? [];
-                $supabaseUserId = $users[0]['id'] ?? null;
-
-                if (!$supabaseUserId) {
-                    Log::warning('User not found in Supabase Auth during password sync', ['email' => $email]);
-                    return false;
-                }
-
-                // 2. Update password via Supabase Admin API
-                $updateResponse = Http::withHeaders([
-                    'apikey' => $serviceRoleKey,
-                    'Authorization' => 'Bearer ' . $serviceRoleKey,
-                    'Content-Type' => 'application/json',
-                ])->put("{$supabaseUrl}/auth/v1/admin/users/{$supabaseUserId}", [
-                    'password' => $newPassword,
-                    'email_confirm' => true
-                ]);
-
-                if (!$updateResponse->successful()) {
-                    Log::error('Failed to update Supabase password via Admin API', ['response' => $updateResponse->body()]);
-                    return false;
-                }
-
-                return true;
-            } catch (\Exception $e) {
-                Log::error('Exception during Supabase password sync: ' . $e->getMessage());
-                return false;
-            }
-        }
-
     public function register(Request $request)
     {
         Log::info('Laravel Register Attempt initiated', [
@@ -148,7 +90,7 @@ class AuthController extends Controller
                     'firstname' => $request->firstname,
                     'lastname' => $request->lastname,
                     'role' => $request->role,
-                    'status' => 'pending',
+                    'status' => 'active',
                     'avatar_url' => $request->avatar_url,
                     'address' => $request->address,
                 ]);
@@ -176,9 +118,8 @@ class AuthController extends Controller
                 return response()->json([
                     'success' => true,
                     'user' => $user->load('shareholder'),
-                    'mfa_required' => true,
                     'email' => $user->email,
-                    'message' => 'Registration successful. Please verify the code sent to your email.'
+                    'message' => 'Registration successful.'
                 ], 201);
             });
         } catch (\Exception $e) {
@@ -192,135 +133,15 @@ class AuthController extends Controller
 
     public function resetPassword(Request $request)
     {
-        Log::info('Laravel Password Reset Attempt initiated', [
-            'email' => $request->input('email'),
-            'ip' => $request->ip(),
-        ]);
-
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|email|exists:users,email',
-            'password' => $this->passwordPolicy,
-        ], [
-            'password.regex' => $this->passwordPolicyMessage
-        ]);
-
-        if ($validator->fails()) {
-            Log::warning('Laravel Password Reset Validation Failed', ['errors' => $validator->errors()->toArray()]);
-            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
-        }
-
-        try {
-            $user = User::where('email', $request->email)->first();
-
-            if (!$user) {
-                Log::warning('Laravel Password Reset Failed: User not found', ['email' => $request->email]);
-                return response()->json(['success' => false, 'message' => 'User not found.'], 404);
-            }
-
-            // 🚀 Sync password change to Supabase Auth provider
-            $this->updateSupabasePassword($request->email, $request->password);
-
-            // 🚀 Update local MySQL bcrypt hash
-            $user->update([
-                'password' => Hash::make($request->password)
-            ]);
-
-            $this->logAuth($user, 'Password Reset Completed', $request);
-            $this->notifyPasswordChange($user);
-
-            Log::info('Laravel Password Reset Successful', ['user_id' => $user->id]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Password has been successfully synchronized and updated.'
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Password reset sync failed: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to sync password: ' . $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => false,
+            'message' => 'Email-based password recovery is disabled. Sign in and change your password, or contact an administrator.',
+        ], 410);
     }
 
     public function login(Request $request)
     {
-        $request->validate([
-            'email'=>'required|email',
-            'supabase_token'=>'required|string'
-        ]);
-
-
-        /*
-         |--------------------------------------------------------------------------
-         | Verify Supabase JWT
-         |--------------------------------------------------------------------------
-         */
-
-        $supabaseUrl = env('SUPABASE_URL');
-
-        $response = Http::withHeaders([
-            'apikey' => env('SUPABASE_ANON_KEY'),
-            'Authorization' => 'Bearer '.$request->supabase_token,
-        ])->get(
-            $supabaseUrl.'/auth/v1/user'
-        );
-        Log::info('Supabase token received', [
-            'token_length' => strlen($request->supabase_token),
-            'token_start' => substr($request->supabase_token,0,20)
-        ]);
-
-        Log::info('Supabase response', [
-            'status'=>$response->status(),
-            'body'=>$response->body()
-        ]);
-
-
-        if (!$response->successful()) {
-
-            return response()->json([
-                'success'=>false,
-                'message'=>'Invalid Supabase token'
-            ],401);
-
-        }
-
-
-        $supabaseUser = $response->json();
-
-
-        /*
-         |--------------------------------------------------------------------------
-         | Find Laravel User using EMAIL
-         |--------------------------------------------------------------------------
-         */
-
-       $user = User::where('email', $supabaseUser['email'])->first();
-
-       if (!$user) {
-           return response()->json([
-               'success' => false,
-               'message' => 'Laravel user not found'
-           ], 404);
-       }
-
-       // Supabase has already confirmed this email (we verified the JWT above),
-       // so sync the local status if it's still marked pending.
-       if ($user->status === 'pending') {
-           $user->update(['status' => 'active']);
-       }
-
-       $token = $user->createToken('mobile')->plainTextToken;
-
-       return response()->json([
-            'success' => true,
-            'data' => [
-                'user' => $user->load('shareholder'),
-                'accessToken' => $token,
-                'refreshToken' => $token,
-                'expiresIn' => 3600,
-            ]
-        ]);
+        return $this->loginPassword($request);
     }
 
     /**
@@ -445,10 +266,6 @@ class AuthController extends Controller
         }
 
         try {
-            // 🚀 Sync password change to Supabase Auth provider
-            $this->updateSupabasePassword($user->email, $request->new_password);
-
-            // 🚀 Update local MySQL bcrypt hash
             $user->update([
                 'password' => Hash::make($request->new_password)
             ]);
@@ -465,92 +282,27 @@ class AuthController extends Controller
     }
 
     public function forgotPassword(Request $request)
-        {
-            $request->validate([
-                'email' => 'required|email'
-            ]);
-
-            $email = $request->input('email');
-            $user = User::where('email', $email)->first();
-
-            if (!$user) {
-                Log::warning('Laravel Forgot Password Failed: Email not found', ['email' => $email]);
-                return response()->json([
-                    'success' => true,
-                    'message' => 'If this email exists, a password reset link has been processed.'
-                ], 200);
-            }
-
-            try {
-                $supabaseUrl = env('SUPABASE_URL') ?? config('services.supabase.url');
-                $serviceRoleKey = env('SUPABASE_SERVICE_ROLE_KEY') ?? config('services.supabase.service_role_key');
-
-                if (!$supabaseUrl || !$serviceRoleKey) {
-                    Log::error('Supabase credentials missing for password recovery trigger.');
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Server configuration error.'
-                    ], 500);
-                }
-
-                $response = Http::withHeaders([
-                    'apikey' => $serviceRoleKey,
-                    'Authorization' => 'Bearer ' . $serviceRoleKey,
-                    'Content-Type' => 'application/json',
-                ])->post("{$supabaseUrl}/auth/v1/recover", [
-                    'email' => $email,
-                    'redirect_to' => 'https://lendingpis-production.up.railway.app/PIS/#/change-password'
-                ]);
-
-                if (!$response->successful()) {
-                    Log::error('Supabase Auth recover API failed', ['response' => $response->body()]);
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Failed to trigger password recovery via Supabase Auth.'
-                    ], 400);
-                }
-
-                $this->logAuth($user, 'Password Reset Request', $request);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Password reset instructions have been dispatched.'
-                ], 200);
-
-            } catch (\Exception $e) {
-                Log::error('Forgot password exception: ' . $e->getMessage());
-                return response()->json([
-                    'success' => false,
-                    'message' => 'An error occurred while processing the request.'
-                ], 500);
-            }
-        }
+    {
+        return response()->json([
+            'success' => false,
+            'message' => 'Email-based password recovery is disabled. Contact an administrator.',
+        ], 410);
+    }
 
     public function verifyMfa(Request $request)
     {
-        $request->validate(['email' => 'required|email']);
-        $user = User::where('email', $request->email)->first();
-
-        if (!$user) {
-            Log::warning('Laravel Verify MFA Failed: User not found', ['email' => $request->input('email')]);
-            return response()->json(['success' => false, 'message' => 'User not found.'], 404);
-        }
-
-        $user->update(['status' => 'active']);
-
-        $user->tokens()->delete();
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        Log::info('Laravel Verify MFA Successful', ['user_id' => $user->id]);
-
-        return response()->json(['success' => true, 'user' => $user->load('shareholder'), 'token' => $token]);
+        return response()->json([
+            'success' => false,
+            'message' => 'Email-based MFA is disabled.',
+        ], 410);
     }
 
     public function resendMfa(Request $request)
     {
-        $request->validate(['email' => 'required|email']);
-        Log::info("MFA Resend requested for: " . $request->email);
-        return response()->json(['success' => true, 'message' => 'Delivery is handled by Supabase.']);
+        return response()->json([
+            'success' => false,
+            'message' => 'Email-based MFA is disabled.',
+        ], 410);
     }
 
     public function logout(Request $request)

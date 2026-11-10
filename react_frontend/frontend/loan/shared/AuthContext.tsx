@@ -16,10 +16,6 @@ interface AuthContextType {
   logout: () => Promise<void>;
   updateProfile: (data: Partial<PlatformUser>) => Promise<void>;
   changePassword: (current: string, newPassword: string) => Promise<void>;
-  forgotPassword: (email: string) => Promise<void>;
-  resetPassword: (token: string, email: string, password: string, password_confirmation: string) => Promise<void>;
-  verifyMfa: (code: string) => Promise<void>;
-  resendMfa: () => Promise<void>;
   offlineLogin: (email: string, pin: string) => Promise<void>;
   clearError: () => void;
   refreshUser: () => Promise<void>;
@@ -121,22 +117,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     await handleApiCall(() => api.changePassword(current, newPassword));
   }, [handleApiCall]);
 
-  const forgotPassword = useCallback(async (email: string) => {
-    await handleApiCall(() => api.forgotPassword(email));
-  }, [handleApiCall]);
-
-  const resetPassword = useCallback(async (token: string, email: string, password: string, password_confirmation: string) => {
-    await handleApiCall(() => api.resetPassword(token, email, password, password_confirmation));
-  }, [handleApiCall]);
-
-  const verifyMfa = useCallback(async (code: string) => {
-    await handleApiCall(() => api.verifyMfa(code));
-  }, [handleApiCall]);
-
-  const resendMfa = useCallback(async () => {
-    await handleApiCall(() => api.resendMfa());
-  }, [handleApiCall]);
-
   const offlineLogin = useCallback(async (email: string, pin: string) => {
     await handleApiCall(
       () => api.offlineLogin({ email, pin }),
@@ -164,10 +144,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     updateProfile,
     changePassword,
-    forgotPassword,
-    resetPassword,
-    verifyMfa,
-    resendMfa,
     offlineLogin,
     clearError,
     refreshUser,
@@ -194,7 +170,8 @@ export const useAuth = (): AuthContextType => {
 
 export const useApi = <T,>(
   apiCall: () => Promise<T>,
-  dependencies: unknown[] = []
+  dependencies: unknown[] = [],
+  enabled = true
 ) => {
   const [data, setData] = useState<T | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -217,8 +194,13 @@ export const useApi = <T,>(
   }, dependencies);
 
   useEffect(() => {
-    execute();
-  }, dependencies);
+    if (!enabled) {
+      setIsLoading(false);
+      return;
+    }
+
+    void execute().catch(() => undefined);
+  }, [...dependencies, enabled]);
 
   return { data, isLoading, error, execute, refetch: execute };
 };

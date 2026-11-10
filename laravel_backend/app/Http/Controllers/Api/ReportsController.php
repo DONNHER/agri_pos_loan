@@ -82,19 +82,9 @@ class ReportsController extends Controller
 
     public function schedule(Request $request)
     {
-        $request->validate([
-            'report_type' => 'required|string',
-            'email' => 'required|email',
-            'format' => 'nullable|in:pdf,xlsx',
-        ]);
-
-        $report = $this->reportService->sendReportByEmail(
-            $request->report_type,
-            $request->input('format', 'pdf'),
-            $request->input('filters', []),
-            $request->email
-        );
-
-        return response()->json(['success' => true, 'report' => $report]);
+        return response()->json([
+            'success' => false,
+            'message' => 'Email report delivery is disabled. Generate and download the report instead.',
+        ], 410);
     }
 }

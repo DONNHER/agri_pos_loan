@@ -24,7 +24,7 @@ class Kernel extends ConsoleKernel
 
 
         // 🚀 Monthly Full System Backup using Spatie
-        $schedule->command('backup:run --only-to-disk=dropbox')
+        $schedule->command('backup:run --only-to-disk=s3')
             ->weeklyOn($this->dayToNumber($backupDay), $backupTime)
             ->withoutOverlapping()
             ->onFailure(fn() => \Log::error('Weekly automated backup failed.'))

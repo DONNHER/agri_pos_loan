@@ -33,7 +33,7 @@ return [
             'compression_level' => 9,
             'filename_prefix' => 'lending_pis_',
             'disks' => [
-                'dropbox',
+                's3',
             ],
         ],
 
@@ -45,44 +45,13 @@ return [
     ],
 
     'notifications' => [
-        'notifications' => [
-            \Spatie\Backup\Notifications\Notifications\BackupHasFailedNotification::class => ['mail'],
-            \Spatie\Backup\Notifications\Notifications\UnhealthyBackupWasFoundNotification::class => ['mail'],
-            \Spatie\Backup\Notifications\Notifications\CleanupHasFailedNotification::class => ['mail'],
-            \Spatie\Backup\Notifications\Notifications\BackupWasSuccessfulNotification::class => ['mail'],
-            \Spatie\Backup\Notifications\Notifications\HealthyBackupWasFoundNotification::class => ['mail'],
-            \Spatie\Backup\Notifications\Notifications\CleanupWasSuccessfulNotification::class => ['mail'],
-        ],
-
-        'notifiable' => \Spatie\Backup\Notifications\Notifiable::class,
-
-        'mail' => [
-            'to' => 's.cuarteros.dionherlove@cmu.edu.ph',
-
-            'from' => [
-                'address' => env('MAIL_FROM_ADDRESS', 'onboarding@resend.dev'),
-                'name' => env('MAIL_FROM_NAME', 'Lending System Backup'),
-            ],
-        ],
-
-        'slack' => [
-            'webhook_url' => '',
-            'channel' => null,
-            'username' => null,
-            'icon' => null,
-        ],
-
-        'discord' => [
-            'webhook_url' => '',
-            'username' => '',
-            'avatar_url' => '',
-        ],
+        'notifications' => [],
     ],
 
     'monitor_backups' => [
         [
             'name' => env('APP_NAME', 'laravel-backup'),
-            'disks' => ['dropbox'],
+            'disks' => ['s3'],
             'health_checks' => [
                 \Spatie\Backup\Tasks\Monitor\HealthChecks\MaximumAgeInDays::class => 1,
                 \Spatie\Backup\Tasks\Monitor\HealthChecks\MaximumStorageInMegabytes::class => 5000,

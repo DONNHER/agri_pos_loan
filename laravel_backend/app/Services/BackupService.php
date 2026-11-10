@@ -3,10 +3,8 @@
 namespace App\Services;
 use Illuminate\Support\Facades\Artisan;
 use App\Models\SiteSetting;
-use App\Mail\BackupNotificationMail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use ZipArchive;
 use Exception;
 
@@ -42,7 +40,7 @@ class BackupService
                     Log::info('Starting full backup...');
 
                     Artisan::call('backup:run', [
-                        '--only-to-disk' => 'dropbox',
+                        '--only-to-disk' => 's3',
                     ]);
 
                     Log::info(Artisan::output());
@@ -88,46 +86,6 @@ class BackupService
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
-
-    /*
-    protected function uploadToCloud($localPath)
-    {
-        try {
-            $filename = basename($localPath);
-            $bucketName = env('AWS_BUCKET', 'backups');
-            $supabaseUrl = str_replace('/storage/v1/s3', '', env('AWS_URL')); // Extract base URL
-            $serviceRoleKey = env('SUPABASE_SERVICE_ROLE_KEY');
-
-            if (!$serviceRoleKey) {
-                throw new Exception("SUPABASE_SERVICE_ROLE_KEY is not set in .env");
-            }
-
-            // Supabase storage endpoint URL structure
-            $url = "{$supabaseUrl}/storage/v1/object/{$bucketName}/backups/{$filename}";
-
-            $client = new \GuzzleHttp\Client();
-            $response = $client->request('POST', $url, [
-                'headers' => [
-                    'Authorization' => 'Bearer ' . $serviceRoleKey,
-                    'apikey'        => $serviceRoleKey,
-                    'Content-Type'  => 'application/octet-stream', // Generic binary stream
-                ],
-                'body' => fopen($localPath, 'r') // Stream the file directly
-            ]);
-
-            if ($response->getStatusCode() === 200) {
-                Log::info("Backup uploaded to Supabase: backups/$filename");
-                // Construct the public URL (assuming the bucket is public or reachable)
-                return "{$supabaseUrl}/storage/v1/object/public/{$bucketName}/backups/{$filename}";
-            }
-
-            throw new Exception("Supabase upload failed with status code: " . $response->getStatusCode());
-        } catch (Exception $e) {
-            Log::error("Supabase cloud upload failed: " . $e->getMessage());
-            return null; // Don't fail the whole backup if cloud upload fails, but notify
-        }
-    }
-    */
 
     protected function backupDatabase()
     {
@@ -223,10 +181,9 @@ class BackupService
                 return;
             }
 
-            $adminEmail = env('MAIL_FROM_ADDRESS', 'noreply@lending-pis.com');
-            Mail::to($adminEmail)->send(new BackupNotificationMail($status, $type, $filePath, $error, $cloudUrl));
+            Log::info('Backup notification', compact('status', 'type', 'filePath', 'error', 'cloudUrl'));
         } catch (\Exception $e) {
-            Log::error("Failed to send backup notification: " . $e->getMessage());
+            Log::error("Failed to log backup notification: " . $e->getMessage());
         }
     }
 

@@ -184,7 +184,15 @@ class ApiService {
       async (error: AxiosError) => {
         const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        const requestUrl = originalRequest.url ?? '';
+        const isAuthRequest = /\/(login|login-password|register|forgot-password|reset-password|verify-mfa|resend-mfa)$/.test(requestUrl);
+
+        if (
+          error.response?.status === 401 &&
+          !originalRequest._retry &&
+          !isAuthRequest &&
+          this.getAccessToken()
+        ) {
           originalRequest._retry = true;
 
           try {
@@ -195,7 +203,9 @@ class ApiService {
             return this.client(originalRequest);
           } catch (refreshError) {
             this.clearAuth();
-            window.location.href = '/login';
+            if (window.location.pathname !== '/login') {
+              window.location.href = '/login';
+            }
             return Promise.reject(refreshError);
           }
         }
@@ -307,22 +317,6 @@ class ApiService {
 
   async changePassword(current: string, newPassword: string): Promise<void> {
     await this.client.put('/user/change-password', { current_password: current, password: newPassword, password_confirmation: newPassword });
-  }
-
-  async forgotPassword(email: string): Promise<void> {
-    await this.client.post('/forgot-password', { email });
-  }
-
-  async resetPassword(token: string, email: string, password: string, password_confirmation: string): Promise<void> {
-    await this.client.post('/reset-password', { token, email, password, password_confirmation });
-  }
-
-  async verifyMfa(code: string): Promise<void> {
-    await this.client.post('/verify-mfa', { code });
-  }
-
-  async resendMfa(): Promise<void> {
-    await this.client.post('/resend-mfa');
   }
 
   async offlineLogin(data: { email: string; pin: string }): Promise<{ user: PlatformUser; token: string }> {
@@ -615,10 +609,6 @@ class ApiService {
 
   async deleteAllNotifications(shareholderId: string): Promise<void> {
     await this.client.delete('/notifications', { params: { shareholder_id: shareholderId } });
-  }
-
-  async sendEmail(to: string, subject: string, message: string): Promise<void> {
-    await this.client.post('/send-email', { to, subject, message });
   }
 
   // ============================================
@@ -943,11 +933,6 @@ class ApiService {
 
   async saveReportPreference(data: { name: string; report_type: string; format?: 'pdf' | 'xlsx'; filters?: Record<string, unknown> }): Promise<unknown> {
     const response = await this.client.post<ApiResponse<unknown>>('/reports/preferences', data);
-    return response.data.data!;
-  }
-
-  async scheduleReportEmail(reportType: string, email: string, format: 'pdf' | 'xlsx' = 'pdf', filters?: Record<string, unknown>): Promise<unknown> {
-    const response = await this.client.post<ApiResponse<unknown>>('/reports/schedule', { report_type: reportType, email, format, filters });
     return response.data.data!;
   }
 

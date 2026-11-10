@@ -188,10 +188,6 @@ function AppInner() {
   const getCurrentUserMutation = useMutation(api.getCurrentUser.bind(api));
   const updateProfileMutation = useMutation(api.updateProfile.bind(api));
   const changePasswordMutation = useMutation(api.changePassword.bind(api));
-  const forgotPasswordMutation = useMutation(api.forgotPassword.bind(api));
-  const resetPasswordMutation = useMutation(api.resetPassword.bind(api));
-  const verifyMfaMutation = useMutation(api.verifyMfa.bind(api));
-  const resendMfaMutation = useMutation(api.resendMfa.bind(api));
   const offlineLoginMutation = useMutation(api.offlineLogin.bind(api));
 
   // Shareholder mutations
@@ -229,7 +225,6 @@ function AppInner() {
   const markNotificationAsReadMutation = useMutation(api.markNotificationAsRead.bind(api));
   const markAllNotificationsAsReadMutation = useMutation(api.markAllNotificationsAsRead.bind(api));
   const deleteAllNotificationsMutation = useMutation(api.deleteAllNotifications.bind(api));
-  const sendEmailMutation = useMutation(api.sendEmail.bind(api));
 
   // Activity log mutations
   const getActivityLogsMutation = useMutation(api.getActivityLogs.bind(api));
@@ -294,7 +289,6 @@ function AppInner() {
   const downloadReportMutation = useMutation(api.downloadReport.bind(api));
   const getReportPreferencesMutation = useMutation(api.getReportPreferences.bind(api));
   const saveReportPreferenceMutation = useMutation(api.saveReportPreference.bind(api));
-  const scheduleReportEmailMutation = useMutation(api.scheduleReportEmail.bind(api));
 
   // ============================================
   // Data Fetching Hooks
@@ -315,25 +309,29 @@ function AppInner() {
       ]);
       return { users, loanRequests, plans, ledger, tickets, notifications, auditLogs, backups };
     },
-    [activeUser?.id]
+    [activeUser?.id],
+    isAuthenticated && !!activeUser
   );
 
   // Fetch dashboard stats
   const { data: dashboardStats } = useApi(
     () => api.getDashboardStats('week'),
-    [activeUser?.id]
+    [activeUser?.id],
+    isAuthenticated && !!activeUser
   );
 
   // Fetch loan chart
   const { data: loanChart } = useApi(
     () => api.getLoanChart('month'),
-    [activeUser?.id]
+    [activeUser?.id],
+    isAuthenticated && !!activeUser
   );
 
   // Fetch share capital chart
   const { data: shareCapitalChart } = useApi(
     () => api.getShareCapitalChart('month'),
-    [activeUser?.id]
+    [activeUser?.id],
+    isAuthenticated && !!activeUser
   );
 
   // ============================================

@@ -8,7 +8,6 @@ use App\Models\Loan;
 use App\Models\Transaction;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Str;
@@ -111,25 +110,6 @@ class ReportService
             ],
             'summary' => $reportData['summary'] ?? [],
         ];
-    }
-
-    public function sendReportByEmail(string $reportType, string $format = 'pdf', array $filters = [], string $email): array
-    {
-        $report = $this->generate($reportType, $format, $filters);
-        $fullPath = $report['path'];
-
-        Mail::send([], [], function ($message) use ($email, $reportType, $fullPath, $format) {
-            $message->to($email)
-                ->subject('Scheduled ' . ucfirst(str_replace('_', ' ', $reportType)) . ' Report')
-                ->html('<p>Please find the attached report.</p>');
-
-            $message->attach($fullPath, [
-                'as' => basename($fullPath),
-                'mime' => $format === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf',
-            ]);
-        });
-
-        return $report;
     }
 
     protected function buildReportData(string $reportType, array $filters = []): array

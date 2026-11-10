@@ -35,12 +35,6 @@ return [
             'root' => storage_path('app'),
             'throw' => false,
         ],
-        'dropbox' => [
-                'driver' => 'dropbox',
-                'authorization_token' => env('DROPBOX_ACCESS_TOKEN'),
-                'root' => 'lending-system',
-            ],
-
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
