@@ -1,0 +1,15 @@
+.git
+.vercel
+.env
+.env.*
+!.env.example
+database/*.sqlite*
+node_modules
+tests
+vendor
+storage/app/*
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/testing/*
+storage/framework/views/*
