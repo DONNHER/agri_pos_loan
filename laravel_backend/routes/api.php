@@ -55,7 +55,37 @@ Route::get('/user/by-email', function (Request $request) {
 });
 
 // 🚀 Public Shareholders List (for login page - no auth required)
-Route::get('/shareholders', [ShareholderController::class, 'indexPublic'])->name('shareholders.public');
+Route::get('/shareholders', function (Request $request) {
+    $query = \App\Models\Shareholder::with(['user']);
+
+    // Handle Search
+    if ($request->filled('search')) {
+        $search = $request->search;
+        $query->where(function($q) use ($search) {
+            $q->where('first_name', 'like', "%$search%")
+              ->orWhere('last_name', 'like', "%$search%")
+              ->orWhere('email', 'like', "%$search%")
+              ->orWhere('full_name', 'like', "%$search%");
+        });
+    }
+
+    // Sorting - Default to first_name if created_at is problematic
+    $query->orderBy('first_name', 'asc');
+
+    // Manual Pagination to be safe
+    $perPage = $request->get('per_page', 10);
+    $paginated = $query->paginate($perPage);
+
+    return response()->json([
+        'success' => true,
+        'data' => $paginated->items(),
+        'meta' => [
+            'total' => $paginated->total(),
+            'current_page' => $paginated->currentPage(),
+            'last_page' => $paginated->lastPage(),
+        ]
+    ]);
+})->name('shareholders.public');
 
 // Protected Routes
 Route::middleware('auth:sanctum')->group(function () {
